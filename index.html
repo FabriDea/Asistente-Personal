@@ -433,7 +433,7 @@ Hoy: ${td}
 Próximos eventos:\n${es}
 Reglas: respuestas cortas y directas. Si detectas evento futuro añade al final: [EVENTO:{"title":"...","date":"YYYY-MM-DD","time":"HH:MM","category":"personal|work|medical|payment|travel|car","notes":"...","alerts":[1440,120,30]}]. Responde en español.`;
   try{
-    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,system:sys,messages:hist.slice(-12)})});
+    const r=await fetch('https://asistente-carlos-api.fabridea-oficial.workers.dev',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({system:sys,messages:hist.slice(-12)})});
     const d=await r.json();
     const rep=d.content?.[0]?.text||'No pude procesar eso.';
     showTy(false);
