@@ -224,7 +224,7 @@ const AOPTS=[
   {l:'2 horas antes',v:120},{l:'3 horas antes',v:180},{l:'1 día antes',v:1440},
   {l:'2 días antes',v:2880},{l:'1 semana antes',v:10080},{l:'2 semanas antes',v:20160}
 ];
-let tok=null,evs=[],cat='personal',calD=new Date(),selD=new Date(),rec=null,isRec=false,hist=[];
+let tok=null,evs=[],cat='personal',calD=new Date(),selD=new Date(),rec=null,isRec=false,hist=[],recTimeout=null;
 
 window.onload=()=>{
   updGreet(); renderCal(); initAl();
@@ -477,13 +477,36 @@ function ar2(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight
 function toggleMic(){
   if(!('webkitSpeechRecognition' in window||'SpeechRecognition' in window)){showToast('Usa Safari en iPhone para voz',true);return;}
   if(isRec){rec?.stop();return;}
+  document.getElementById('ci').blur();
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  rec=new SR();rec.lang='es-ES';rec.continuous=false;rec.interimResults=false;
-  rec.onstart=()=>{isRec=true;document.getElementById('micBtn').classList.add('rec');};
-  rec.onend=()=>{isRec=false;document.getElementById('micBtn').classList.remove('rec');};
-  rec.onresult=(e)=>{const t=e.results[0][0].transcript;document.getElementById('ci').value=t;setTimeout(sendMsg,200);};
-  rec.onerror=()=>{isRec=false;document.getElementById('micBtn').classList.remove('rec');};
+  rec=new SR();
+  rec.lang='es-ES';
+  rec.continuous=false;
+  rec.interimResults=true;
+  rec.onstart=()=>{
+    isRec=true;
+    document.getElementById('micBtn').classList.add('rec');
+  };
+  rec.onend=()=>{
+    isRec=false;
+    document.getElementById('micBtn').classList.remove('rec');
+    clearTimeout(recTimeout);
+    const txt=document.getElementById('ci').value.trim();
+    if(txt)setTimeout(sendMsg,150);
+  };
+  rec.onresult=(e)=>{
+    let txt='';
+    for(let i=0;i<e.results.length;i++){txt+=e.results[i][0].transcript;}
+    document.getElementById('ci').value=txt;
+    ar2(document.getElementById('ci'));
+  };
+  rec.onerror=()=>{
+    isRec=false;
+    document.getElementById('micBtn').classList.remove('rec');
+    clearTimeout(recTimeout);
+  };
   rec.start();
+  recTimeout=setTimeout(()=>{if(isRec)rec.stop();},15000);
 }
 
 function showToast(msg,err=false){
