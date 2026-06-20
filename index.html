@@ -431,7 +431,7 @@ async function sendMsg(){
   const sys=`Eres el asistente personal ejecutivo de Carlos Obelleiro, facility regional manager de GOfit (Córdoba, Sevilla, Maracena, Ciudad Real, Plaza Elíptica). Padre de bebé 2 años. Impresora 3D BambuLab P1S.
 Hoy: ${td}
 Próximos eventos:\n${es}
-Reglas: respuestas cortas y directas. NO menciones ni resumas la lista de próximos eventos salvo que el usuario pregunte explícitamente por su calendario o agenda — esa lista es solo contexto interno para ti, no para repetirla en la respuesta. Si detectas evento futuro añade al final: [EVENTO:{"title":"...","date":"YYYY-MM-DD","time":"HH:MM","category":"personal|work|medical|payment|travel|car","notes":"...","alerts":[1440,120,30]}]. Responde en español.`;
+Reglas: respuestas cortas y directas. NO menciones ni resumas la lista de próximos eventos salvo que el usuario pregunte explícitamente por su calendario o agenda — esa lista es solo contexto interno para ti, no para repetirla en la respuesta. Genera el marcador [EVENTO:...] ÚNICAMENTE cuando el usuario te pida explícitamente crear/añadir/agendar un evento NUEVO en este mismo mensaje. Nunca generes ese marcador para eventos que ya aparecen en la lista de "Próximos eventos" — esa lista es solo para que sepas qué hay ya agendado, jamás para recrearlo. Formato: [EVENTO:{"title":"...","date":"YYYY-MM-DD","time":"HH:MM","category":"personal|work|medical|payment|travel|car","notes":"...","alerts":[1440,120,30]}]. Responde en español.`;
   try{
     const r=await fetch('https://asistente-carlos-api.fabridea-oficial.workers.dev',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({system:sys,messages:hist.slice(-12)})});
     const d=await r.json();
@@ -474,13 +474,14 @@ function showTy(s){document.getElementById('tyInd').classList.toggle('vis',s);do
 function hk(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg();}}
 function ar2(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,120)+'px';}
 
-let recTimeout=null,silenceTimer=null;
+let recTimeout=null,micLock=false;
 
 function stopRecognition(send){
+  if(micLock)return;
+  micLock=true;
   clearTimeout(recTimeout);
-  clearTimeout(silenceTimer);
   if(rec){
-    try{rec.onend=null;rec.onresult=null;rec.onerror=null;rec.onstart=null;rec.stop();rec.abort&&rec.abort();}catch(e){}
+    try{rec.onend=null;rec.onresult=null;rec.onerror=null;rec.onstart=null;rec.stop();}catch(e){}
   }
   rec=null;
   isRec=false;
@@ -489,16 +490,18 @@ function stopRecognition(send){
     const txt=document.getElementById('ci').value.trim();
     if(txt)setTimeout(sendMsg,150);
   }
+  setTimeout(()=>{micLock=false;},400);
 }
 
 function toggleMic(){
   if(!('webkitSpeechRecognition' in window||'SpeechRecognition' in window)){showToast('Usa Safari en iPhone para voz',true);return;}
   if(isRec){stopRecognition(true);return;}
+  if(micLock)return;
   document.getElementById('ci').blur();
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   rec=new SR();
   rec.lang='es-ES';
-  rec.continuous=true;
+  rec.continuous=false;
   rec.interimResults=true;
   rec.onstart=()=>{
     isRec=true;
@@ -509,8 +512,6 @@ function toggleMic(){
     for(let i=0;i<e.results.length;i++){txt+=e.results[i][0].transcript;}
     document.getElementById('ci').value=txt;
     ar2(document.getElementById('ci'));
-    clearTimeout(silenceTimer);
-    silenceTimer=setTimeout(()=>{stopRecognition(true);},2200);
   };
   rec.onerror=()=>{stopRecognition(false);};
   rec.onend=()=>{stopRecognition(true);};
