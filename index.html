@@ -480,23 +480,26 @@ function stopRecognition(send){
   if(micLock)return;
   micLock=true;
   clearTimeout(recTimeout);
+  const mb=document.getElementById('micBtn');
+  mb.disabled=true;
   if(rec){
-    try{rec.onend=null;rec.onresult=null;rec.onerror=null;rec.onstart=null;rec.stop();}catch(e){}
+    try{rec.onend=null;rec.onresult=null;rec.onerror=null;rec.onstart=null;rec.abort();}catch(e){}
   }
   rec=null;
   isRec=false;
-  document.getElementById('micBtn').classList.remove('rec');
+  mb.classList.remove('rec');
+  document.getElementById('ci').placeholder='Escribe o usa el micrófono...';
   if(send){
     const txt=document.getElementById('ci').value.trim();
     if(txt)setTimeout(sendMsg,150);
   }
-  setTimeout(()=>{micLock=false;},400);
+  setTimeout(()=>{micLock=false;mb.disabled=false;},1200);
 }
 
 function toggleMic(){
   if(!('webkitSpeechRecognition' in window||'SpeechRecognition' in window)){showToast('Usa Safari en iPhone para voz',true);return;}
-  if(isRec){stopRecognition(true);return;}
   if(micLock)return;
+  if(isRec){stopRecognition(true);return;}
   document.getElementById('ci').blur();
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   rec=new SR();
@@ -506,6 +509,7 @@ function toggleMic(){
   rec.onstart=()=>{
     isRec=true;
     document.getElementById('micBtn').classList.add('rec');
+    document.getElementById('ci').placeholder='🎙️ Escuchando... pulsa el micro para parar';
   };
   rec.onresult=(e)=>{
     let txt='';
