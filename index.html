@@ -511,7 +511,7 @@ async function toggleMic(){
           ar2(document.getElementById('ci'));
           setTimeout(sendMsg,150);
         }else{
-          showToast('No se entendió el audio, inténtalo de nuevo',true);
+          showToast(d.debug?('Audio: '+d.debug):'No se entendió el audio, inténtalo de nuevo',true);
         }
       }catch(e){
         document.getElementById('ci').placeholder='Escribe o usa el micrófono...';
