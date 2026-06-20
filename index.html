@@ -224,7 +224,7 @@ const AOPTS=[
   {l:'2 horas antes',v:120},{l:'3 horas antes',v:180},{l:'1 día antes',v:1440},
   {l:'2 días antes',v:2880},{l:'1 semana antes',v:10080},{l:'2 semanas antes',v:20160}
 ];
-let tok=null,evs=[],cat='personal',calD=new Date(),selD=new Date(),rec=null,isRec=false,hist=[];
+let tok=null,evs=[],cat='personal',calD=new Date(),selD=new Date(),isRec=false,hist=[],mediaRecorder=null,audioChunks=[],micStream=null;
 
 window.onload=()=>{
   updGreet(); renderCal(); initAl();
@@ -474,53 +474,57 @@ function showTy(s){document.getElementById('tyInd').classList.toggle('vis',s);do
 function hk(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg();}}
 function ar2(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,120)+'px';}
 
-let recTimeout=null,micLock=false;
-
-function stopRecognition(send){
-  if(micLock)return;
-  micLock=true;
-  clearTimeout(recTimeout);
-  const mb=document.getElementById('micBtn');
-  mb.disabled=true;
-  if(rec){
-    try{rec.onend=null;rec.onresult=null;rec.onerror=null;rec.onstart=null;rec.abort();}catch(e){}
+async function toggleMic(){
+  if(isRec){
+    if(mediaRecorder && mediaRecorder.state!=='inactive')mediaRecorder.stop();
+    return;
   }
-  rec=null;
-  isRec=false;
-  mb.classList.remove('rec');
-  document.getElementById('ci').placeholder='Escribe o usa el micrófono...';
-  if(send){
-    const txt=document.getElementById('ci').value.trim();
-    if(txt)setTimeout(sendMsg,150);
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+    showToast('Tu navegador no soporta grabación de audio',true);
+    return;
   }
-  setTimeout(()=>{micLock=false;mb.disabled=false;},1200);
-}
-
-function toggleMic(){
-  if(!('webkitSpeechRecognition' in window||'SpeechRecognition' in window)){showToast('Usa Safari en iPhone para voz',true);return;}
-  if(micLock)return;
-  if(isRec){stopRecognition(true);return;}
-  document.getElementById('ci').blur();
-  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  rec=new SR();
-  rec.lang='es-ES';
-  rec.continuous=false;
-  rec.interimResults=true;
-  rec.onstart=()=>{
+  try{
+    document.getElementById('ci').blur();
+    micStream=await navigator.mediaDevices.getUserMedia({audio:true});
+    audioChunks=[];
+    mediaRecorder=new MediaRecorder(micStream);
+    mediaRecorder.ondataavailable=(e)=>{if(e.data.size>0)audioChunks.push(e.data);};
+    mediaRecorder.onstop=async()=>{
+      isRec=false;
+      document.getElementById('micBtn').classList.remove('rec');
+      micStream.getTracks().forEach(t=>t.stop());
+      micStream=null;
+      const blob=new Blob(audioChunks,{type:mediaRecorder.mimeType||'audio/mp4'});
+      if(blob.size<1000){document.getElementById('ci').placeholder='Escribe o usa el micrófono...';return;}
+      document.getElementById('ci').placeholder='🎙️ Transcribiendo...';
+      try{
+        const buf=await blob.arrayBuffer();
+        const r=await fetch('https://asistente-carlos-api.fabridea-oficial.workers.dev',{
+          method:'POST',
+          headers:{'Content-Type':'application/octet-stream','X-Audio':'1'},
+          body:buf
+        });
+        const d=await r.json();
+        document.getElementById('ci').placeholder='Escribe o usa el micrófono...';
+        if(d.text&&d.text.trim()){
+          document.getElementById('ci').value=d.text.trim();
+          ar2(document.getElementById('ci'));
+          setTimeout(sendMsg,150);
+        }else{
+          showToast('No se entendió el audio, inténtalo de nuevo',true);
+        }
+      }catch(e){
+        document.getElementById('ci').placeholder='Escribe o usa el micrófono...';
+        showToast('Error transcribiendo audio',true);
+      }
+    };
+    mediaRecorder.start();
     isRec=true;
     document.getElementById('micBtn').classList.add('rec');
-    document.getElementById('ci').placeholder='🎙️ Escuchando... pulsa el micro para parar';
-  };
-  rec.onresult=(e)=>{
-    let txt='';
-    for(let i=0;i<e.results.length;i++){txt+=e.results[i][0].transcript;}
-    document.getElementById('ci').value=txt;
-    ar2(document.getElementById('ci'));
-  };
-  rec.onerror=()=>{stopRecognition(false);};
-  rec.onend=()=>{stopRecognition(true);};
-  rec.start();
-  recTimeout=setTimeout(()=>{stopRecognition(true);},20000);
+    document.getElementById('ci').placeholder='🎙️ Grabando... pulsa el micro para parar';
+  }catch(e){
+    showToast('No se pudo acceder al micrófono',true);
+  }
 }
 
 function showToast(msg,err=false){
